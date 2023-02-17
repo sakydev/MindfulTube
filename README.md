@@ -1,2 +1,3 @@
-# mindfeed
-A distraction-free self improvement content reccomentation system
+# MindFeed
+
+A distraction-free self-improvement content recommendation system
