@@ -33,6 +33,7 @@ class Youtube
 
         $results = $this->youtubeApi->search->listSearch('id,snippet', $parameters);
 
+        $channelIds = [];
         $videos = [];
         foreach ($results as $video) {
             $current = [
@@ -47,13 +48,19 @@ class Youtube
                 'channelUrl' => sprintf('https://www.youtube.com/channel/%s', $video->snippet->channelId),
             ];
 
+            $channelIds[] = $video->snippet->channelId;
             $videos[$video->id->videoId] = $current;
         }
 
         if ($withDetails) {
-            $details = $this->getVideos(array_keys($videos));
+            $videoDetails = $this->getVideos(array_keys($videos));
             foreach ($videos as $video) {
-                $videos[$video['id']]['details'] = $details[$video['id']];
+                $videos[$video['id']]['videoDetails'] = $videoDetails[$video['id']];
+            }
+
+            $channelDetails = $this->getChannels($channelIds);
+            foreach ($videos as $video) {
+                $videos[$video['id']]['channelDetails'] = $channelDetails[$video['channelId']];
             }
         }
 
@@ -73,10 +80,10 @@ class Youtube
                 'definition' => $video->contentDetails->definition,
                 'duration' => $this->convertDuration($video->contentDetails->duration),
                 'projection' => $video->contentDetails->projection,
-                'commentCount' => $video->statistics->commentCount,
-                'likeCount' => $video->statistics->likeCount,
-                'dislikeCount' => $video->statistics->dislikeCount,
-                'viewCount' => $video->statistics->viewCount,
+                'commentCount' => (int) $video->statistics->commentCount,
+                'likeCount' => (int) $video->statistics->likeCount,
+                'dislikeCount' => (int) $video->statistics->dislikeCount,
+                'viewCount' => (int) $video->statistics->viewCount,
                 'viewCountFormatted' => $this->formatViews($video->statistics->viewCount),
             ];
 
@@ -84,6 +91,27 @@ class Youtube
         }
 
         return $videos;
+    }
+
+    public function getChannels(array $channelIds): ?array
+    {
+        $response = $this->youtubeApi->channels->listChannels('statistics', [
+            'id' => implode(',', $channelIds),
+        ]);
+
+        $channels = [];
+        foreach ($response as $channel) {
+            $current = [
+                'subscriberCount' => (int) $channel->statistics->subscriberCount,
+                'subscriberCountFormatted' => $this->formatViews($channel->statistics->subscriberCount),
+                'videoCount' => (int) $channel->statistics->videoCount,
+                'viewCount' => (int) $channel->statistics->viewCount,
+            ];
+
+            $channels[$channel->id] = $current;
+        }
+
+        return $channels;
     }
 
     public function recommend(array $input): ?array
@@ -103,10 +131,61 @@ class Youtube
             'channelId' => $input['channelId'],
         ];
 
-
         $searchResults = $this->searchVideos($parameters, true);
+        $rankedResults = $this->rankVideos($searchResults);
 
-        return $searchResults;
+        return $rankedResults;
+    }
+
+    public function rankVideos(array $videos): array
+    {
+        // how many views converted to comments: (comments / views) * 100
+        // how many views converted to likes: (likes / views) * 100
+        // what percentage of subscribers watched video: (views / subscribers) * 100
+        // what percentage of channel views were provided by this video: (views / channelViews) * 100
+        // what is liked vs disliked ratio: ((liked + disliked) / liked) * 100
+
+        $ranked = [];
+        foreach ($videos as $currentVideo) {
+            $videoDetails = $currentVideo['videoDetails'];
+            $channelDetails = $currentVideo['channelDetails'];
+
+            $ratios = [
+                'viewsToComment' => $this->getPercentage(
+                    $videoDetails['commentCount'],
+                    $videoDetails['viewCount'],
+                ),
+                'viewsToLikes' => $this->getPercentage(
+                    $videoDetails['likeCount'],
+                    $videoDetails['viewCount'],
+                ),
+                'subscribersWatched' => $this->getPercentage(
+                    $videoDetails['viewCount'],
+                    $channelDetails['subscriberCount'],
+                ),
+                'channelViewsContribution' => $this->getPercentage(
+                    $videoDetails['viewCount'],
+                    $channelDetails['viewCount'],
+                ),
+                'liked' => $this->getPercentage(
+                    $videoDetails['likeCount'],
+                    ($videoDetails['likeCount'] + $videoDetails['dislikeCount']),
+                ),
+            ];
+
+            $scoreSincePublished = $this->getPercentage(
+                array_sum($ratios),
+                $this->daysSincePublished($currentVideo['publishedAt']),
+            );
+
+            $currentVideo['totalScore'] = $scoreSincePublished;
+            $currentVideo['likedRatio'] = $ratios['liked'];
+            $ranked[$scoreSincePublished] = $currentVideo;
+        }
+
+        krsort($ranked);
+
+        return $ranked;
     }
 
     private function convertDuration(string $time){
@@ -131,5 +210,19 @@ class Youtube
         }
 
         return $views;
+    }
+
+    private function getPercentage(int $first, $second): int
+    {
+        $total = ($first / $second);
+        return $total * 100;
+    }
+
+    private function daysSincePublished(string $publishedAt): int
+    {
+        $published = Carbon::parse($publishedAt);
+        $now = Carbon::now();
+
+        return $published->diffInDays($now);
     }
 }

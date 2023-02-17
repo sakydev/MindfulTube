@@ -18,7 +18,7 @@ class FeedController extends Controller
         $input = $request->all();
         $youtube = new Youtube();
 
-        $videos = $youtube->recommend($input);
+         $videos = $youtube->recommend($input);
         // $videos = [];
 
         return view('home', compact('videos'));

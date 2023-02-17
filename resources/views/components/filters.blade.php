@@ -115,7 +115,8 @@
         <label for="channelId" class="form-label">Limit search to provided channels</label>
         <textarea type="text" name="channelId" class="form-control" placeholder="Comma separated list of channel IDs" id="channelId">{{ request()->get('channelId') }}</textarea>
     </div>
-    <div class="col-12 text-center pt-3">
-        <button type="submit" class="btn btn-dark col-6">Feed My Brain</button>
+    <div class="row col-12 justify-content-md-center text-center pt-3">
+        <button type="submit" class="btn btn-light col-5 m-3">Reset filters</button>
+        <button type="submit" class="btn btn-dark col-5 m-3">Feed My Brain</button>
     </div>
 </form>
