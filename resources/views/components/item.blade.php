@@ -22,8 +22,8 @@
                         <small class="text-muted">
                             <span>
                                 <img src="{{ asset("assets/svgs/address-card.svg") }}" width="16">
-                                <a href="{{ $video['channelUrl'] }}" target="_blank">{{ $video['channelTitle'] }} (973K)</a>
-                            </span>,
+                                <a href="{{ $video['channelUrl'] }}" target="_blank">{{ $video['channelTitle'] }} (973K)</a>,
+                            </span>
                             <img src="{{ asset("assets/svgs/eye.svg") }}" width="16"> {{ $video['details']['viewCountFormatted'] }} (73%),
                             <img src="{{ asset("assets/svgs/heart.svg") }}" width="16"> 93%,
                         </small>

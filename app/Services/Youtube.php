@@ -6,6 +6,7 @@ use Google_Client;
 use Google_Service_YouTube;
 use DateTime;
 use DateInterval;
+use Illuminate\Support\Carbon;
 
 class Youtube
 {
@@ -20,13 +21,17 @@ class Youtube
         $this->youtubeApi = new Google_Service_YouTube($this->client);
         $this->maxResults = env('YOUTUBE_MAX_RESULTS');
     }
-    public function searchVideos(string $keyword, bool $withDetails = false): ?array
+    public function searchVideos(array $parameters, bool $withDetails = false): ?array
     {
-        $results = $this->youtubeApi->search->listSearch('id,snippet', array(
-            'q' => $keyword,
-            'maxResults' => $this->maxResults,
-            'type' => 'video',
-        ));
+        $parameters = array_merge(
+            $parameters,
+            [
+                'maxResults' => $parameters['maxResults'] ?? $this->maxResults,
+                'type' => 'video',
+            ],
+        );
+
+        $results = $this->youtubeApi->search->listSearch('id,snippet', $parameters);
 
         $videos = [];
         foreach ($results as $video) {
@@ -79,6 +84,29 @@ class Youtube
         }
 
         return $videos;
+    }
+
+    public function recommend(array $input): ?array
+    {
+        // formula
+        // (views * min(viewsToSubsRation, 5)) / daysSincePublishedx
+        $dateFilter = Carbon::now()->subDays($input['publishedAfter'])->toDateString();
+        $parameters = [
+            'q' => $input['terms'],
+            'order' => $input['order'], // viewCount, rating, videoCount
+            'publishedAfter' => $dateFilter . 'T00:00:00Z',
+            'safeSearch' => $input['safeSearch'],
+            'videoDefinition' => $input['videoDefinition'], // any, standard, high
+            'videoDuration' => $input['videoDuration'], // any, long, medium, short
+            'maxResults' => $input['maxResults'],
+            'relevanceLanguage' => $input['relevanceLanguage'],
+            'channelId' => $input['channelId'],
+        ];
+
+
+        $searchResults = $this->searchVideos($parameters, true);
+
+        return $searchResults;
     }
 
     private function convertDuration(string $time){

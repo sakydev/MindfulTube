@@ -16,3 +16,4 @@ use App\Http\Controllers\FeedController;
 */
 
 Route::get('/', [FeedController::class, 'index'])->name('home');
+Route::get('/recommend', [FeedController::class, 'recommend'])->name('recommend');
