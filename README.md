@@ -2,7 +2,7 @@
 
 # MindFeed
 
-A distraction-free self-improvement content recommendation system
+A distraction-free content recommendation system
 
 ## How to install
 1. Clone repository `git clone https://github.com/sakydev/mindfeed.git`
