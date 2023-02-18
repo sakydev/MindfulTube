@@ -117,7 +117,7 @@ class Youtube
     public function recommend(array $input): ?array
     {
         $parameters = [
-            'q' => str_replace(',', '%7C', $input['terms']),
+            'q' => str_replace(',', '|', $input['terms']),
             'order' => $input['order'], // viewCount, rating, videoCount
             'safeSearch' => $input['safeSearch'],
             'videoDefinition' => $input['videoDefinition'], // any, standard, high
@@ -128,8 +128,8 @@ class Youtube
         ];
 
         if (!empty($input['publishedAfter'])) {
-            $dateFilter = Carbon::now()->subDays($input['publishedAfter'])->toDateString() . 'T00:00:00Z';
-            $parameters['publishedAfter'] = $dateFilter;
+            $dateFilter = Carbon::now()->subDays($input['publishedAfter'])->toDateString();
+            $parameters['publishedAfter'] = $dateFilter . 'T00:00:00Z';
         }
 
         $searchResults = $this->searchVideos($parameters, true);
@@ -146,12 +146,6 @@ class Youtube
 
     public function rankVideos(array $videos): array
     {
-        // how many views converted to comments: (comments / views) * 100
-        // how many views converted to likes: (likes / views) * 100
-        // what percentage of subscribers watched video: (views / subscribers) * 100
-        // what percentage of channel views were provided by this video: (views / channelViews) * 100
-        // what is liked vs disliked ratio: ((liked + disliked) / liked) * 100
-
         $ranked = [];
         foreach ($videos as $currentVideo) {
             $videoDetails = $currentVideo['videoDetails'];
@@ -226,6 +220,7 @@ class Youtube
     {
         if ($first < 1 || $second < 1) { return 0; }
         $total = ($first / $second);
+
         return $total * 100;
     }
 
