@@ -13,7 +13,7 @@
     </div>
     <div class="row">
         @isset($videos)
-            @foreach($videos as $rank => $video)
+            @foreach($videos as $video)
                 @include('components.item', ['video' => $video, 'rank' => $loop->iteration])
             @endforeach
         @endisset

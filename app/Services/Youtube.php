@@ -38,7 +38,7 @@ class Youtube
         foreach ($results as $video) {
             $current = [
                 'id' => $video->id->videoId,
-                'title' => $video->snippet->title,
+                'title' => html_entity_decode($video->snippet->title),
                 'description' => $video->snippet->description,
                 'channelId' => $video->snippet->channelId,
                 'channelTitle' => $video->snippet->channelTitle,
@@ -116,23 +116,30 @@ class Youtube
 
     public function recommend(array $input): ?array
     {
-        // formula
-        // (views * min(viewsToSubsRation, 5)) / daysSincePublishedx
-        $dateFilter = Carbon::now()->subDays($input['publishedAfter'])->toDateString();
         $parameters = [
-            'q' => $input['terms'],
+            'q' => str_replace(',', '%7C', $input['terms']),
             'order' => $input['order'], // viewCount, rating, videoCount
-            'publishedAfter' => $dateFilter . 'T00:00:00Z',
             'safeSearch' => $input['safeSearch'],
             'videoDefinition' => $input['videoDefinition'], // any, standard, high
             'videoDuration' => $input['videoDuration'], // any, long, medium, short
-            'maxResults' => $input['maxResults'],
+            'maxResults' => ($input['maxResults'] * 2),
             'relevanceLanguage' => $input['relevanceLanguage'],
             'channelId' => $input['channelId'],
         ];
 
+        if (!empty($input['publishedAfter'])) {
+            $dateFilter = Carbon::now()->subDays($input['publishedAfter'])->toDateString() . 'T00:00:00Z';
+            $parameters['publishedAfter'] = $dateFilter;
+        }
+
         $searchResults = $this->searchVideos($parameters, true);
         $rankedResults = $this->rankVideos($searchResults);
+        $totalResults = count($rankedResults);
+
+        // return only top half of videos
+        if ($totalResults > $input['maxResults']) {
+            $rankedResults = array_slice($rankedResults, 0, ($totalResults / 2));
+        }
 
         return $rankedResults;
     }
@@ -159,10 +166,6 @@ class Youtube
                     $videoDetails['likeCount'],
                     $videoDetails['viewCount'],
                 ),
-                'subscribersWatched' => $this->getPercentage(
-                    $videoDetails['viewCount'],
-                    $channelDetails['subscriberCount'],
-                ),
                 'channelViewsContribution' => $this->getPercentage(
                     $videoDetails['viewCount'],
                     $channelDetails['viewCount'],
@@ -173,11 +176,18 @@ class Youtube
                 ),
             ];
 
+            // only get subscriber ratio with a minimum following of given value
+            if ($channelDetails['subscriberCount'] > env('YOUTUBE_MIN_SUBSCRIBERS')) {
+                $ratios['subscribersWatched'] = $this->getPercentage(
+                    $videoDetails['viewCount'],
+                    $channelDetails['subscriberCount'],
+                );
+            }
+
             $scoreSincePublished = $this->getPercentage(
                 array_sum($ratios),
                 $this->daysSincePublished($currentVideo['publishedAt']),
             );
-
             $currentVideo['totalScore'] = $scoreSincePublished;
             $currentVideo['likedRatio'] = $ratios['liked'];
             $ranked[$scoreSincePublished] = $currentVideo;
@@ -214,6 +224,7 @@ class Youtube
 
     private function getPercentage(int $first, $second): int
     {
+        if ($first < 1 || $second < 1) { return 0; }
         $total = ($first / $second);
         return $total * 100;
     }
